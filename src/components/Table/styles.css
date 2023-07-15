@@ -1,0 +1,11 @@
+th {
+  @apply w-1/6 h-6 text-center text-xs font-medium text-gray-500 uppercase tracking-wider overflow-ellipsis overflow-hidden;
+}
+
+td {
+  @apply w-1/6 h-8 text-center whitespace-nowrap text-xs overflow-ellipsis overflow-hidden;
+}
+
+button {
+  cursor: pointer;
+}
