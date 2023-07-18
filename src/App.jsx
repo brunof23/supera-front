@@ -9,6 +9,7 @@ function App() {
     dataInicio: '',
     dataFim: '',
     operador: '',
+    conta: '',
   });
 
   return (

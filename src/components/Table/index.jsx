@@ -1,54 +1,143 @@
 import React, { useState, useEffect } from 'react';
-import { data } from '../../db.js';
 import './styles.css';
+import axios from 'axios';
 
 const Table = ({ filters }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const itemsPerPage = 10;
   const [filteredData, setFilteredData] = useState([]);
+  const [saldoTotal, setSaldoTotal] = useState(0);
+  const [saldoFiltrado, setSaldoFiltrado] = useState(0);
 
-  const { dataInicio, dataFim, operador } = filters;
+  const { dataInicio, dataFim, operador, conta } = filters;
+
+
+  function mapApiResponseToDataFormat(apiResponse) {
+    return apiResponse.map((item) => {
+      return {
+        id: item.id,
+        data_transferencia: item.dataTransferencia,
+        valor: item.valor,
+        tipo: item.tipo,
+        nome_operador_transacao: item.nomeOperadorTransacao,
+        conta_id: item.conta.id,
+      };
+    });
+  }
+
+  function formatDateToISO(dateString) {
+    // assumindo que dateString está no formato "YYYY-MM-DD"
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  }
+  
+  useEffect(() => {
+    const params = {};
+    let endpoint = 'http://localhost:8080/banco/transferencias';
+    
+    // Define qual endpoint será usado de acordo com os filtros
+    if (dataInicio && dataFim && operador) {
+      params.dataInicial = formatDateToISO(dataInicio) + 'T00:00:00';
+      params.dataFinal = formatDateToISO(dataFim) + 'T00:00:00';
+      params.nomeOperador = operador;
+      endpoint = 'http://localhost:8080/banco/transferencias-todos-filtros';
+    } else if (dataInicio && dataFim && operador &&numeroConta) {
+      params.dataInicial = formatDateToISO(dataInicio) + 'T00:00:00';
+      params.dataFinal = formatDateToISO(dataFim) + 'T00:00:00';
+      params.nomeOperador = operador;
+      endpoint = 'http://localhost:8080/banco/transferencias-todos-filtros-conta';
+    } else if (dataInicio && dataFim) {
+      params.dataInicial = formatDateToISO(dataInicio) + 'T00:00:00';
+      params.dataFinal = formatDateToISO(dataFim) + 'T00:00:00';
+      endpoint = `http://localhost:8080/banco/transferencias-por-data`;
+    } else if (operador) {
+      endpoint = `http://localhost:8080/banco/transferencias-por-operador/${operador}`;
+    } else if(conta) {
+      params.conta = conta;
+      endpoint = `http://localhost:8080/banco/transferencias-por-conta/${conta}`;
+    }
+  
+    // Get total balance
+    if (conta) {
+      axios.get(`http://localhost:8080/banco/saldo-total/${conta}`)
+        .then((response) => {
+          setSaldoTotal(response.data);
+        })
+        .catch((error) => {
+          console.error(`There was an error retrieving the total balance: ${error}`);
+        });
+    } else {  // Caso nenhuma conta seja selecionada, pegar o saldo de todas as transações
+      axios.get(`http://localhost:8080/banco/saldo-total`)
+        .then((response) => {
+          setSaldoTotal(response.data);
+        })
+        .catch((error) => {
+          console.error(`There was an error retrieving the total balance: ${error}`);
+        });
+    }
+  
+    // Get filtered balance
+    if (conta) {
+      let endpointSaldoFiltrado = 'http://localhost:8080/banco/saldo-total-periodo';
+      const paramsSaldoFiltrado = {
+        numeroConta: conta,
+      };
+      if (dataInicio && dataFim) {
+        paramsSaldoFiltrado.dataInicial = formatDateToISO(dataInicio) + 'T00:00:00';
+        paramsSaldoFiltrado.dataFinal = formatDateToISO(dataFim) + 'T00:00:00';
+      }
+      axios.get(endpointSaldoFiltrado, {
+        params: paramsSaldoFiltrado,
+      })
+      .then((response) => {
+        setSaldoFiltrado(response.data);
+      })
+      .catch((error) => {
+        console.error(`There was an error retrieving the filtered balance: ${error}`);
+      });
+    } else {  // Caso nenhuma conta seja selecionada, pegar o saldo filtrado de todas as transações
+      let endpointSaldoFiltrado = 'http://localhost:8080/banco/saldo-filtrado-todos';  // Novo endpoint que retorna o saldo filtrado considerando todos os registros
+      const paramsSaldoFiltrado = {};
+      if (dataInicio && dataFim) {
+        paramsSaldoFiltrado.dataInicial = formatDateToISO(dataInicio) + 'T00:00:00';
+        paramsSaldoFiltrado.dataFinal = formatDateToISO(dataFim) + 'T00:00:00';
+      }
+      if (operador) {
+        paramsSaldoFiltrado.operador = operador;
+      }
+      axios.get(endpointSaldoFiltrado, {
+        params: paramsSaldoFiltrado,
+      })
+      .then((response) => {
+        setSaldoFiltrado(response.data);
+      })
+      .catch((error) => {
+        console.error(`There was an error retrieving the filtered balance: ${error}`);
+      });
+    }
+  
+    // Get transactions
+    axios.get(endpoint, { params })
+      .then((response) => {
+        setFilteredData(mapApiResponseToDataFormat(response.data));
+      })
+      .catch((error) => {
+        console.error(`There was an error retrieving the transactions: ${error}`);
+      });
+
+  }, [dataInicio, dataFim, operador, conta]);  // Adicionado "conta" como dependência do useEffect
+
 
   useEffect(() => {
-    const inicio = new Date(dataInicio);
-    const fim = new Date(dataFim);
-
-    if (dataFim) {
-      fim.setDate(fim.getDate() + 1);
+    if (!dataInicio && !dataFim && !operador) {
+      setSaldoFiltrado(saldoTotal);
     }
+  }, [dataInicio, dataFim, operador, saldoTotal]);
 
-    const filterData = (transacao) => {
-      let isValidDate = true;
-      let isValidOperador = !operador || (transacao.nome_operador_transacao && transacao.nome_operador_transacao.toLowerCase().includes(operador.toLowerCase()));
-    
-      if (dataInicio || dataFim) {
-        let dataTransacao = new Date(transacao.data_transferencia);
-    
-        if (dataInicio) {
-          let inicio = new Date(dataInicio);
-          isValidDate = dataTransacao >= inicio;
-        }
-    
-        if (isValidDate && dataFim) {
-          let fim = new Date(dataFim);
-          fim.setDate(fim.getDate() + 1);
-          isValidDate = dataTransacao < fim;
-        }
-      }
-    
-      return isValidDate && isValidOperador;
-    }
-
-    setFilteredData(Object.values(data.transferencia).filter(filterData));
-    setCurrentPage(0); // reseta a paginação para 0 quando os filtros mudarem
-  }, [dataInicio, dataFim, operador]);
 
   const formatReal = (amount) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
   }
-
-  const saldoTotal = Object.values(data.transferencia).reduce((total, transacao) => total + transacao.valor, 0);
-  const saldoFiltrado = filteredData.reduce((total, transacao) => total + transacao.valor, 0);
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
@@ -67,9 +156,19 @@ const Table = ({ filters }) => {
         <div className="align-middle inline-block min-w-full px-0 m-0 sm:px-6 lg:px-20">
           <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg divide-y divide-x">
           <div className='flex w-full text-center text-xs font-medium text-gray-500 uppercase tracking-wider overflow-ellipsis overflow-hidden bg-gray-50 items-center h-8'>
-            <div className='w-1/2'>Saldo total: <span className={saldoTotal < 0 ? "text-red-500" : "text-green-500"}>{formatReal(saldoTotal)}</span></div>
-            <div className='w-1/2'>Saldo filtrado: <span className={saldoFiltrado < 0 ? "text-red-500" : "text-green-500"}>{formatReal(saldoFiltrado)}</span></div>
-      </div>
+            <div className='w-1/2'>
+              <span className='mr-1'>Saldo total: </span>
+              <span className={saldoTotal < 0 ? "text-red-500" : "text-blue-500"}>
+                {conta ? formatReal(saldoTotal) : "Selecione uma conta"}
+              </span>
+            </div>
+            <div className='w-1/2'>
+            <span className='mr-1'>Saldo filtrado: </span> 
+              <span className={saldoFiltrado < 0 ? "text-red-500" : "text-blue-500"}>
+                {conta ? formatReal(saldoFiltrado) : "Selecione uma conta"}
+              </span>
+            </div>
+          </div>
           <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr className='divide-x'>
@@ -126,11 +225,8 @@ const Table = ({ filters }) => {
             <button onClick={(e) => { e.preventDefault(); setCurrentPage(currentPage + 1) }} disabled={currentPage >= totalPages - 1} className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">{">"}</button>
             <button onClick={(e) => { e.preventDefault(); setCurrentPage(totalPages - 1) }} disabled={currentPage >= totalPages - 1} className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">{">>"}</button>
           </div>
-
         </div>
-
       </div>
-
     </div>
   )
 }

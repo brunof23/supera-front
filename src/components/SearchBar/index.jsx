@@ -5,10 +5,12 @@ const SearchBar = ({ onFilterSubmit }) => {
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [operador, setOperador] = useState('');
+  const [conta, setConta] = useState('');
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onFilterSubmit({ dataInicio, dataFim, operador });
+    onFilterSubmit({ dataInicio, dataFim, operador, conta });
   };
 
   const handleClear = (e) => {
@@ -16,6 +18,7 @@ const SearchBar = ({ onFilterSubmit }) => {
     setDataInicio('');
     setDataFim('');
     setOperador('');
+    setConta('');
     onFilterSubmit({ dataInicio: '', dataFim: '', operador: '' });
   };
 
@@ -57,6 +60,17 @@ const SearchBar = ({ onFilterSubmit }) => {
               name="operador" 
               value={operador} 
               onChange={(e) => setOperador(e.target.value)}
+              className='border-2 rounded p-1'
+            />
+          </div>
+          <div className='w-full md:w-1/4 flex flex-col'>
+            <label htmlFor='conta' className='font-bold text-xs mb-1'>Código da Conta</label>
+            <input 
+              type="text" 
+              id="conta" 
+              name="conta" 
+              value={conta} 
+              onChange={(e) => setConta(e.target.value)}
               className='border-2 rounded p-1'
             />
           </div>
